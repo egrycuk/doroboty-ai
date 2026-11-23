@@ -16,6 +16,7 @@ import { CvAttachment } from "./cv-attachment";
 import { MatchScore } from "./match-score";
 import { RecruitingApplication } from "./recruiting-application";
 import { CandidateApplication } from "./candidate-application";
+import { prototypeLogger } from "@/lib/posthog-logger";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -26,7 +27,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 export function PersonPicker() {
-  const { state, run } = usePrototype();
+  const { state, run, capture } = usePrototype();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get("next");
@@ -50,7 +51,13 @@ export function PersonPicker() {
             <Button
               variant="outline"
               onClick={() => {
-                run({ type: "select_person", id: person.id });
+                if (run({ type: "select_person", id: person.id })) {
+                  capture("person_selected", { role: person.role });
+                  prototypeLogger.info("prototype person selected", {
+                    event: "prototype.person_selected",
+                    role: person.role,
+                  });
+                }
                 navigate(
                   person.role === "candidate"
                     ? (safeNext ?? "/app")
@@ -140,7 +147,7 @@ export function WorkspaceHome() {
   );
 }
 export function ProfilePage({ preview = false }: { preview?: boolean }) {
-  const { state, run } = usePrototype();
+  const { state, run, capture } = usePrototype();
   const person = currentPerson(state)!;
   const [message, setMessage] = useState("");
   function save(e: FormEvent<HTMLFormElement>) {
@@ -156,8 +163,10 @@ export function ProfilePage({ preview = false }: { preview?: boolean }) {
           location: String(data.get("location")),
         },
       })
-    )
+    ) {
+      capture("candidate_profile_saved");
       setMessage("Profil został zapisany.");
+    }
   }
   return (
     <>
@@ -231,7 +240,7 @@ export function SavedPage() {
 }
 export function ApplyPage() {
   const { slug } = useParams();
-  const { state, run } = usePrototype();
+  const { state, run, capture } = usePrototype();
   const person = currentPerson(state)!;
   const navigate = useNavigate();
   const job = publishedJobs(state).find((x) => x.slug === slug);
@@ -282,6 +291,19 @@ export function ApplyPage() {
       return;
     }
     if (run({ type: "submit", jobId: job!.id, notes, generated, answer, consent })) {
+      capture("application_submitted", {
+        job_category: job!.category,
+        job_function: job!.function,
+        remote_status: job!.remoteStatus,
+        has_saved_draft: Boolean(draft),
+      });
+      prototypeLogger.info("application submitted", {
+        event: "prototype.application_submitted",
+        job_category: job!.category,
+        job_function: job!.function,
+        remote_status: job!.remoteStatus,
+        has_saved_draft: Boolean(draft),
+      });
       submittedOnce.current = true;
       setSubmitted(true);
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -387,8 +409,13 @@ export function ApplyPage() {
                 disabled={submitted}
                 variant="outline"
                 onClick={() => {
-                  if (run({ type: "draft", jobId: job.id, notes, generated, answer }))
+                  if (run({ type: "draft", jobId: job.id, notes, generated, answer })) {
+                    capture("application_draft_saved", {
+                      job_category: job.category,
+                      job_function: job.function,
+                    });
                     setMessage("Szkic został zapisany.");
+                  }
                 }}
               >
                 Zapisz szkic

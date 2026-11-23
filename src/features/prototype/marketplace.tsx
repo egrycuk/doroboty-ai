@@ -97,7 +97,7 @@ function LocalMap({ jobs }: { jobs: JobWithCompany[] }) {
   );
 }
 export function JobsPage() {
-  const { state } = usePrototype();
+  const { state, capture } = usePrototype();
   const person = currentPerson(state);
   const [params, setParams] = useSearchParams();
   const filters = parseJobFilters(Object.fromEntries(params));
@@ -141,11 +141,19 @@ export function JobsPage() {
     const data = new FormData(e.currentTarget);
     const next = new URLSearchParams(params);
     next.delete("page");
-    for (const key of ["query", "location"]) {
-      const value = String(data.get(key) ?? "").trim();
+    const query = String(data.get("query") ?? "").trim();
+    const location = String(data.get("location") ?? "").trim();
+    for (const [key, value] of [
+      ["query", query],
+      ["location", location],
+    ]) {
       if (value) next.set(key, value);
       else next.delete(key);
     }
+    capture("job_search_submitted", {
+      has_query: Boolean(query),
+      has_location_filter: Boolean(location),
+    });
     setParams(next);
   }
   const locations = [...new Set(all.flatMap((x) => x.locations))];
@@ -341,7 +349,7 @@ export function JobPage() {
     });
     return () => cancelAnimationFrame(frame);
   }, [location.hash, location.key, slug]);
-  const { state, run } = usePrototype();
+  const { state, run, capture } = usePrototype();
   const person = currentPerson(state);
   const job = publishedJobs(state).find((x) => x.slug === slug);
   if (!job) return <NotFound />;
@@ -430,7 +438,15 @@ export function JobPage() {
                     variant="outline"
                     aria-label="Zapisz ofertę"
                     aria-pressed={saved}
-                    onClick={() => run({ type: "toggle_saved", jobId: job.id })}
+                    onClick={() => {
+                      if (run({ type: "toggle_saved", jobId: job.id })) {
+                        capture("job_saved", {
+                          is_saved: !saved,
+                          job_category: job.category,
+                          remote_status: job.remoteStatus,
+                        });
+                      }
+                    }}
                   >
                     <Bookmark className={cn(saved && "fill-current")} />
                     Zapisz ofertę

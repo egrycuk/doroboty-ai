@@ -5,7 +5,7 @@ import type { Application } from "./model";
 import { usePrototype } from "./store";
 
 export function CandidateApplication({ application }: { application: Application }) {
-  const { state, run } = usePrototype();
+  const { state, run, capture } = usePrototype();
   const [confirming, setConfirming] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const statusRef = useRef<HTMLSpanElement>(null);
@@ -45,6 +45,7 @@ export function CandidateApplication({ application }: { application: Application
                   variant="destructive"
                   onClick={() => {
                     if (run({ type: "withdraw", applicationId: application.id })) {
+                      capture("application_withdrawn");
                       focusAfter.current = "status";
                       setConfirming(false);
                       setAnnouncement("Aplikacja została wycofana.");
